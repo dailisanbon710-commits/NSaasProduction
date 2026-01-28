@@ -5,6 +5,8 @@ import { TrendingUp, TrendingDown, Minus, Trophy, Users, AlertTriangle, Target, 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from "recharts";
 import { useState, useRef, useEffect } from "react";
 import { AIChatPanel } from "./AIChatPanel";
+import { AICoachPanel } from "./AICoachPanel";
+import { EnrichedScheduledCallCard } from "./EnrichedScheduledCallCard";
 import {
   useTeamScheduledCalls,
   useAllCalls,
@@ -14,6 +16,7 @@ import {
   useAllInsights,
   useAllKeyMoments
 } from "../../../services/hooks";
+import { getAICoachingSummary } from "../../../services/aiCoachService";
 
 export function ManagerPerformanceDashboard() {
   const [selectedCallId, setSelectedCallId] = useState<number | null>(null);
@@ -26,6 +29,15 @@ export function ManagerPerformanceDashboard() {
   const [scheduleSortBy, setScheduleSortBy] = useState<"date" | "name" | "type">("date");
   const [selectedRep1, setSelectedRep1] = useState("Sarah Johnson");
   const [selectedRep2, setSelectedRep2] = useState("Tom Martinez");
+
+  // AI Coaching state
+  const [aiCoachingData, setAiCoachingData] = useState<{
+    masterReport: any;
+    agentAnalysis: any[];
+    objections: any[];
+    questions: any[];
+  } | null>(null);
+  const [loadingAICoaching, setLoadingAICoaching] = useState(false);
 
   // Audio player ref
   const audioRef = useRef<HTMLAudioElement>(null);

@@ -68,6 +68,25 @@ async function addTodaysScheduledCalls() {
         'Review their recent product launch announcement',
         'Prepare case study from similar data analytics company',
         'Have pricing tiers ready for 50-100 users'
+      ],
+      linkedin_data: {
+        title: 'CEO & Founder',
+        company_size: '51-200 employees',
+        industry: 'Data Analytics',
+        recent_activity: 'Posted about scaling challenges with current tools'
+      },
+      crm_data: {
+        deal_stage: 'Discovery',
+        deal_value: 45000,
+        lead_source: 'Webinar',
+        last_interaction: 'Attended webinar 3 days ago'
+      },
+      prior_calls_summary: 'First call with this prospect. CTO attended our webinar and expressed interest.',
+      ai_prep_insights: [
+        '🎯 Mid-market buyer - focus on ROI and quick implementation',
+        '💡 Recently posted about data integration challenges - align solution to this pain point',
+        '⚡ Hot lead (webinar attendee) - move quickly to demo stage',
+        '📊 Budget range: $40-50K based on company size and industry benchmarks'
       ]
     },
     {
@@ -84,6 +103,25 @@ async function addTodaysScheduledCalls() {
         'Prepare API integration demo environment',
         'Review their tech stack (mentioned Python & AWS)',
         'Have technical specialist on standby'
+      ],
+      linkedin_data: {
+        title: 'VP of Engineering',
+        company_size: '11-50 employees',
+        industry: 'Cloud Infrastructure',
+        recent_activity: 'Shared article about API-first architecture'
+      },
+      crm_data: {
+        deal_stage: 'Demo',
+        deal_value: 28000,
+        lead_source: 'Referral',
+        last_interaction: 'Discovery call 5 days ago'
+      },
+      prior_calls_summary: 'Discovery call went well. Lisa mentioned Python/AWS stack and need for robust API integrations.',
+      ai_prep_insights: [
+        '👩‍💻 Technical buyer - dive deep into API capabilities and documentation',
+        '🔗 Mentioned API-first architecture - emphasize our REST & GraphQL APIs',
+        '✅ Positive sentiment from discovery call - high close probability',
+        '💰 Budget approved for Q1 - aim to close this month'
       ]
     },
     {
@@ -100,6 +138,25 @@ async function addTodaysScheduledCalls() {
         'Review their trial usage analytics',
         'Prepare renewal discount offer',
         'Ask about team feedback'
+      ],
+      linkedin_data: {
+        title: 'CFO',
+        company_size: '201-500 employees',
+        industry: 'Financial Services',
+        recent_activity: 'No recent activity'
+      },
+      crm_data: {
+        deal_stage: 'Trial',
+        deal_value: 85000,
+        lead_source: 'Inbound',
+        last_interaction: 'Trial started 14 days ago'
+      },
+      prior_calls_summary: 'Onboarding call 2 weeks ago. James seemed cautious but interested. Trial usage has been moderate.',
+      ai_prep_insights: [
+        '⚠️ Trial usage: 60% - probe for blockers or confusion',
+        '💼 CFO buyer - focus on cost savings and efficiency gains',
+        '🎁 Prepare 15% discount for annual commitment',
+        '📈 Show ROI calculator based on their team size'
       ]
     }
   ];

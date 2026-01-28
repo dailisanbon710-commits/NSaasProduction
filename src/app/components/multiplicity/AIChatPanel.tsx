@@ -3,6 +3,7 @@ import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/app/components/ui/badge";
 import { Sparkles, X, Minimize2, Maximize2, Send, Lightbulb } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
+import { streamChatMessage, type ChatMessage } from "../../../services/openaiService";
 
 interface Message {
   role: "user" | "ai";
@@ -19,6 +20,12 @@ interface AIChatPanelProps {
     teamData?: Array<{ name: string; score: number; trend: string }>;
     strengths?: string[];
     improvements?: string[];
+    aiCoachingData?: {
+      masterReport: any;
+      agentAnalysis: any[];
+      objections: any[];
+      questions: any[];
+    } | null;
   };
 }
 
@@ -64,43 +71,80 @@ export function AIChatPanel({ role, context }: AIChatPanelProps) {
   // Smart AI response generator
   const generateAIResponse = (userMessage: string): string => {
     const lowerMsg = userMessage.toLowerCase();
+    const aiData = context.aiCoachingData;
 
     if (role === "rep") {
-      // Rep-specific responses
-      if (lowerMsg.includes("closing") || lowerMsg.includes("close")) {
-        return `Great question! Based on your recent calls, here's what I noticed about your closing:
+      // Rep-specific responses using REAL AI coaching data
+      if (lowerMsg.includes("objection") || lowerMsg.includes("price") || lowerMsg.includes("expensive")) {
+        if (aiData?.objections && aiData.objections.length > 0) {
+          const priceObjection = aiData.objections.find((o: any) => o.category === 'price') || aiData.objections[0];
+          return `I analyzed your objection handling. Here's what I found:
 
-📊 Current closing score: ${context.overallScore ? Math.floor(context.overallScore * 0.85) : 75}/100
+🚨 **Objection at ${priceObjection.timestamp}:**
+Customer said: "${priceObjection.customer_said}"
 
-**What's working:**
-• You're good at summarizing value propositions
-• Professional and confident tone
+📊 **Your Response Score:** ${priceObjection.response_score}/10
+${priceObjection.response_analysis ? `\n💡 **Analysis:** ${priceObjection.response_analysis}` : ''}
 
-**Areas to improve:**
-• Create more urgency - mention limited-time offers or deadlines
-• Use assumptive closing techniques ("When should we schedule your onboarding?")
-• Trial close earlier in the conversation to gauge interest
+**Better Responses:**
+${priceObjection.suggested_responses?.map((r: string, i: number) => `${i + 1}. "${r}"`).join('\n') || ''}
 
-**Action tip:** In your next call, try this phrase: "Based on what you've shared, this seems like a perfect fit. How does moving forward this week sound?"`;
+${priceObjection.was_resolved ? '✅ You resolved it, but could be stronger!' : '❌ This objection wasn\'t fully resolved - practice these responses!'}
+
+Want me to help you practice objection handling?`;
+        }
       }
 
-      if (lowerMsg.includes("last call") || lowerMsg.includes("recent") || lowerMsg.includes("latest")) {
+      if (lowerMsg.includes("question") || lowerMsg.includes("discovery")) {
+        if (aiData?.questions && aiData.questions.length > 0) {
+          const goodQuestions = aiData.questions.filter((q: any) => q.quality_score >= 7);
+          const badQuestions = aiData.questions.filter((q: any) => q.quality_score < 7);
+
+          return `📊 **Your Question Quality Analysis:**
+
+✅ **Strong Questions (${goodQuestions.length}):**
+${goodQuestions.map((q: any) => `• [${q.timestamp}] "${q.question_text}" (${q.quality_score}/10)\n  ${q.why_good || ''}`).join('\n\n')}
+
+${badQuestions.length > 0 ? `\n⚠️ **Questions to Improve (${badQuestions.length}):**
+${badQuestions.map((q: any) => `• [${q.timestamp}] "${q.question_text}" (${q.quality_score}/10)\n  ❌ ${q.why_bad || ''}\n  ✅ Better: "${q.better_alternative || ''}"`).join('\n\n')}` : ''}
+
+🎯 **Focus:** Ask more ${goodQuestions[0]?.question_type || 'open-ended'} questions!`;
+        }
+      }
+
+      if (lowerMsg.includes("last call") || lowerMsg.includes("recent") || lowerMsg.includes("latest") || lowerMsg.includes("score")) {
+        if (aiData?.masterReport) {
+          const report = aiData.masterReport;
+          return `📊 **Your Latest Call Analysis:**
+
+⭐ **Overall Score:** ${report.overall_score}/100
+
+**Top Strengths:**
+${report.top_strengths?.map((s: string, i: number) => `${i + 1}. ${s}`).join('\n') || ''}
+
+**Areas to Improve:**
+${report.top_improvements?.map((imp: string, i: number) => `${i + 1}. ${imp}`).join('\n') || ''}
+
+🎯 **Priority Focus:** ${report.priority_coaching_focus}
+
+**Agent Scores:**
+${Object.entries(report.agent_scores || {}).map(([key, score]) => `• ${key.replace(/_/g, ' ')}: ${score}/100`).join('\n')}
+
+Want specific tips on any of these areas?`;
+        }
+
         const lastCall = context.recentCalls?.[0];
-        return lastCall 
+        return lastCall
           ? `Let me break down your call with ${lastCall.customer}:
 
 📞 **Call Type:** ${lastCall.type}
 ⭐ **Score:** ${lastCall.score}/100
 
 **Key Insights:**
-• Discovery phase was strong - you asked good open-ended questions
-• Missed opportunity at 4:30 mark - customer mentioned budget concerns but you didn't dig deeper
-• Talk ratio was 65/35 (you/customer) - aim for 40/60
+${context.strengths?.slice(0, 2).map(s => `✅ ${s}`).join('\n') || ''}
 
-**What to do differently:**
-✅ Ask follow-up questions when objections surface
-✅ Use more silence - let customer fill the gaps
-✅ Practice BANT qualification (Budget, Authority, Need, Timeline)
+**What to improve:**
+${context.improvements?.slice(0, 2).map(imp => `⚠️ ${imp}`).join('\n') || ''}
 
 Want me to create a practice script for your next call?`
           : "I need more information about which call you're referring to. Can you specify the customer name or call type?";
@@ -376,13 +420,15 @@ What would you like to explore?`;
     }
   };
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!inputValue.trim()) return;
+
+    const userMessageContent = inputValue;
 
     // Add user message
     const userMessage: Message = {
       role: "user",
-      content: inputValue,
+      content: userMessageContent,
       timestamp: new Date(),
     };
     setMessages((prev) => [...prev, userMessage]);
@@ -391,16 +437,75 @@ What would you like to explore?`;
     // Show typing indicator
     setIsTyping(true);
 
-    // Simulate AI thinking time
-    setTimeout(() => {
-      const aiResponse: Message = {
+    try {
+      // Convert messages to ChatMessage format
+      const chatMessages: ChatMessage[] = messages.map(msg => ({
+        role: msg.role === 'ai' ? 'assistant' : 'user',
+        content: msg.content
+      }));
+
+      // Add current user message
+      chatMessages.push({
+        role: 'user',
+        content: userMessageContent
+      });
+
+      // Create placeholder for AI response
+      const aiMessageId = Date.now();
+      const aiMessage: Message = {
         role: "ai",
-        content: generateAIResponse(inputValue),
+        content: "",
         timestamp: new Date(),
       };
-      setMessages((prev) => [...prev, aiResponse]);
+      setMessages((prev) => [...prev, aiMessage]);
+
+      // Stream response from OpenAI
+      let fullResponse = '';
+      for await (const chunk of streamChatMessage(chatMessages, context)) {
+        fullResponse += chunk;
+        setMessages((prev) => {
+          const newMessages = [...prev];
+          const lastMessage = newMessages[newMessages.length - 1];
+          if (lastMessage.role === 'ai') {
+            lastMessage.content = fullResponse;
+          }
+          return newMessages;
+        });
+      }
+
       setIsTyping(false);
-    }, 1500);
+    } catch (error: any) {
+      console.error('Error sending message:', error);
+
+      // Determine error message
+      let errorMessage = "I'm having trouble connecting to my AI brain right now. Please try again in a moment. 🤖";
+
+      if (error.message?.includes('API key not configured')) {
+        errorMessage = "⚠️ OpenAI API key not configured. Please add your API key to .env.local file:\n\nVITE_OPENAI_API_KEY=sk-your-key-here\n\nThen restart the dev server.";
+      } else if (error.message?.includes('401')) {
+        errorMessage = "🔑 Invalid API key. Please check your OpenAI API key in .env.local";
+      } else if (error.message?.includes('429')) {
+        errorMessage = "⏱️ Rate limit exceeded. Please wait a moment and try again.";
+      }
+
+      // Fallback to local response if OpenAI fails
+      const aiResponse: Message = {
+        role: "ai",
+        content: errorMessage,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => {
+        const newMessages = [...prev];
+        const lastMessage = newMessages[newMessages.length - 1];
+        if (lastMessage.role === 'ai' && !lastMessage.content) {
+          newMessages[newMessages.length - 1] = aiResponse;
+        } else {
+          newMessages.push(aiResponse);
+        }
+        return newMessages;
+      });
+      setIsTyping(false);
+    }
   };
 
   const handleSuggestedQuestion = (question: string) => {

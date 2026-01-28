@@ -114,6 +114,27 @@ export interface ScheduledCall {
   status: 'scheduled' | 'completed' | 'cancelled';
   created_at: string;
   updated_at: string;
+  // New enrichment fields
+  customer_profile_id?: string | null;
+  linkedin_data?: LinkedInData | null;
+  crm_data?: CRMData | null;
+  prior_calls_summary?: string | null;
+  ai_prep_insights?: string[] | null;
+}
+
+export interface LinkedInData {
+  title?: string;
+  company_size?: string;
+  industry?: string;
+  recent_activity?: string;
+  profile_url?: string;
+}
+
+export interface CRMData {
+  deal_stage?: string;
+  deal_value?: number;
+  lead_source?: string;
+  last_interaction?: string;
 }
 
 export interface CallWithDetails extends Call {
@@ -131,4 +152,106 @@ export interface RepWithCalls extends Rep {
 export interface ManagerWithTeam extends Manager {
   reps: Rep[];
   team_calls: Call[];
+}
+
+// AI Agent System Types
+export interface AgentAnalysis {
+  id: string;
+  call_id: string;
+  agent_type: 'objection_handler' | 'discovery_coach' | 'closing_coach' | 'talk_time_analyzer' | 'question_quality';
+  score: number; // 0-100
+  analysis_data: any;
+  strengths: string[];
+  improvements: string[];
+  recommendations: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Objection {
+  id: string;
+  call_id: string;
+  timestamp: string;
+  customer_said: string;
+  category: 'price' | 'timing' | 'authority' | 'need' | 'trust' | 'competition';
+  severity: 'high' | 'medium' | 'low';
+  rep_response: string | null;
+  response_score: number; // 0-10
+  response_analysis: string | null;
+  suggested_responses: string[];
+  was_resolved: boolean;
+  created_at: string;
+}
+
+export interface Question {
+  id: string;
+  call_id: string;
+  timestamp: string;
+  question_text: string;
+  question_type: 'open_ended' | 'probing' | 'clarifying' | 'closed' | 'leading';
+  quality_score: number; // 0-10
+  why_good: string | null;
+  why_bad: string | null;
+  better_alternative: string | null;
+  customer_response: string | null;
+  created_at: string;
+}
+
+export interface RepSkill {
+  id: string;
+  rep_id: string;
+  skill_name: string;
+  current_score: number;
+  previous_score: number;
+  trend: 'improving' | 'declining' | 'stable';
+  change: number;
+  team_percentile: number;
+  benchmark: string;
+  measurement_date: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MasterCoachReport {
+  id: string;
+  call_id: string;
+  overall_score: number;
+  top_strengths: string[];
+  top_improvements: string[];
+  priority_coaching_focus: string;
+  recommended_actions: any;
+  agent_scores: {
+    objection_handling?: number;
+    discovery?: number;
+    closing?: number;
+    talk_time?: number;
+    question_quality?: number;
+  };
+  created_at: string;
+}
+
+export interface CustomerProfile {
+  id: string;
+  customer_name: string;
+  email: string | null;
+  company: string | null;
+  linkedin_url: string | null;
+  linkedin_data: LinkedInData | null;
+  company_size: string | null;
+  industry: string | null;
+  funding_stage: string | null;
+  customer_persona: string | null;
+  pain_points: string[];
+  interests: string[];
+  total_calls: number;
+  last_call_date: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CallWithAICoaching extends CallWithDetails {
+  agent_analysis?: AgentAnalysis[];
+  objections?: Objection[];
+  questions?: Question[];
+  master_coach_report?: MasterCoachReport;
 }

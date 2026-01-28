@@ -37,6 +37,8 @@ import {
 } from "recharts";
 import { useState, useRef, useEffect } from "react";
 import { AIChatPanel } from "./AIChatPanel";
+import { AICoachPanel } from "./AICoachPanel";
+import { EnrichedScheduledCallCard } from "./EnrichedScheduledCallCard";
 import {
   useAllCalls,
   useAllAnalysis,
@@ -45,6 +47,7 @@ import {
   useAllInsights,
   useAllKeyMoments
 } from "../../../services/hooks";
+import { getAICoachingSummary } from "../../../services/aiCoachService";
 
 export function RepPerformanceDashboard() {
   const [selectedCallId, setSelectedCallId] = useState<number>(1);
@@ -67,6 +70,15 @@ export function RepPerformanceDashboard() {
   const [scheduleSortBy, setScheduleSortBy] = useState<
     "date" | "name" | "type"
   >("date");
+
+  // AI Coaching state
+  const [aiCoachingData, setAiCoachingData] = useState<{
+    masterReport: any;
+    agentAnalysis: any[];
+    objections: any[];
+    questions: any[];
+  } | null>(null);
+  const [loadingAICoaching, setLoadingAICoaching] = useState(false);
 
   // Audio player ref
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -499,6 +511,65 @@ Customer: Thanks, Emma. Talk soon!`,
   // Fallback untuk seçili çağrı
   const selectedCall =
     displayCalls.find((c) => c.id === selectedCallId) || displayCalls[0];
+
+  // Fetch AI coaching data when call is selected
+  useEffect(() => {
+    const abortController = new AbortController();
+    let debounceTimer: NodeJS.Timeout;
+
+    const fetchAICoaching = async () => {
+      if (!selectedCall?.id) return;
+
+      // Find the Supabase call ID from the selected mock call
+      const supabaseCall = supabaseCalls?.find((c: any) =>
+        c.customer_name === selectedCall.customer && c.rep_name === selectedCall.rep
+      );
+
+      if (!supabaseCall?.id) {
+        console.log('No Supabase call found for selected call');
+        return;
+      }
+
+      // Debounce to prevent rapid re-fetching
+      debounceTimer = setTimeout(async () => {
+        if (abortController.signal.aborted) return;
+
+        setLoadingAICoaching(true);
+        try {
+          console.log('🔍 Fetching AI coaching data for call ID:', supabaseCall.id);
+          const data = await getAICoachingSummary(supabaseCall.id);
+          console.log('✅ AI Coaching Data received:', {
+            masterReport: data.masterReport,
+            objectionsCount: data.objections?.length || 0,
+            questionsCount: data.questions?.length || 0,
+            objections: data.objections,
+            questions: data.questions
+          });
+          if (!abortController.signal.aborted) {
+            setAiCoachingData(data);
+          }
+        } catch (error) {
+          if (!abortController.signal.aborted) {
+            console.error('❌ Error fetching AI coaching data:', error);
+          }
+        } finally {
+          if (!abortController.signal.aborted) {
+            setLoadingAICoaching(false);
+          }
+        }
+      }, 300); // 300ms debounce
+    };
+
+    fetchAICoaching();
+
+    // Cleanup function
+    return () => {
+      abortController.abort();
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
+    };
+  }, [selectedCallId, supabaseCalls]); // Depend on selectedCallId and supabaseCalls
 
   // Calculate real metrics from data
   const calculateMetrics = () => {
@@ -1011,121 +1082,25 @@ Customer: Thanks, Emma. Talk soon!`,
               </div>
 
               <div className="space-y-3">
-                {sortedScheduledCalls.map((call) => {
-                  // Priority renkleri
-                  const priorityColors = {
-                    high: {
-                      border: "border-red-500/40",
-                      bg: "bg-red-500/20",
-                      text: "text-red-300",
-                      icon: "from-red-500 to-red-600",
-                      label: "High Priority"
-                    },
-                    medium: {
-                      border: "border-yellow-500/40",
-                      bg: "bg-yellow-500/20",
-                      text: "text-yellow-300",
-                      icon: "from-yellow-500 to-orange-600",
-                      label: "Medium Priority"
-                    },
-                    low: {
-                      border: "border-green-500/40",
-                      bg: "bg-green-500/20",
-                      text: "text-green-300",
-                      icon: "from-green-500 to-emerald-600",
-                      label: "Low Priority"
-                    }
-                  };
-
-                  const priority = priorityColors[call.priority as keyof typeof priorityColors] || priorityColors.medium;
-
-                  return (
-                  <Card
-                    key={call.id}
-                    className={`p-4 border ${priority.border} ${priority.bg} hover:shadow-lg transition-all`}
-                  >
-                    <div className="flex items-start gap-3 mb-3">
-                      <div className={`w-10 h-10 bg-gradient-to-br ${priority.icon} rounded-lg flex items-center justify-center flex-shrink-0`}>
-                        <Calendar className="w-5 h-5 text-white" />
+                {scheduledCallsData && scheduledCallsData.length > 0 ? (
+                  scheduledCallsData
+                    .filter((call: any) => {
+                      const scheduledDate = call.scheduled_date ? new Date(call.scheduled_date) : null;
+                      if (!scheduledDate) return false;
+                      const nowCST = new Date().toLocaleString("en-US", { timeZone: "America/Chicago" });
+                      const currentTimeCST = new Date(nowCST);
+                      return scheduledDate > currentTimeCST;
+                    })
+                    .map((call: any) => (
+                      <div key={call.id} className="bg-[#1e293b]/50 rounded-lg">
+                        <EnrichedScheduledCallCard call={call} />
                       </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <p className="font-semibold text-white text-sm">
-                            {call.customer}
-                          </p>
-                          <Badge className={`${priority.bg} ${priority.text} border ${priority.border} text-xs`}>
-                            {priority.label}
-                          </Badge>
-                        </div>
-                        <p className="text-xs text-gray-400 mb-1">
-                          {call.company}
-                        </p>
-                        <div className="flex items-center gap-3 text-xs text-gray-400">
-                          <div className="flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            <span>{call.time}</span>
-                          </div>
-                          <span>•</span>
-                          <Badge
-                            variant="outline"
-                            className="text-xs border-cyan-500/40 text-cyan-300"
-                          >
-                            {call.type}
-                          </Badge>
-                          <span>•</span>
-                          <span>{call.duration}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Notes */}
-                    <div className="bg-blue-500/10 border border-blue-500/30 rounded p-2 mb-3">
-                      <div className="flex items-start gap-2">
-                        <FileText className="w-3 h-3 text-blue-400 mt-0.5 flex-shrink-0" />
-                        <p className="text-xs text-gray-300">{call.notes}</p>
-                      </div>
-                    </div>
-
-                    {/* Preparation Tips */}
-                    <details className="group">
-                      <summary className="text-xs font-semibold text-cyan-400 cursor-pointer hover:text-cyan-300 flex items-center gap-1">
-                        <Sparkles className="w-3 h-3" />
-                        AI Prep Tips ({call.preparationTips.length})
-                      </summary>
-                      <ul className="mt-2 space-y-1 pl-4">
-                        {call.preparationTips.map((tip: string, idx: number) => (
-                          <li
-                            key={idx}
-                            className="text-xs text-gray-300 flex items-start gap-2"
-                          >
-                            <span className="text-cyan-400">•</span>
-                            <span>{tip}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </details>
-
-                    {/* Action Button */}
-                    <div className="mt-3 pt-3 border-t border-gray-700 flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        className="flex-1 bg-cyan-500 hover:bg-cyan-600 text-white border-0 h-8 text-xs"
-                      >
-                        <Phone className="w-3 h-3 mr-1" />
-                        Join Call
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/10 h-8 px-2"
-                        onClick={() => window.open(call.linkedIn, "_blank")}
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                      </Button>
-                    </div>
-                  </Card>
-                  );
-                })}
+                    ))
+                ) : (
+                  <p className="text-gray-400 text-sm text-center py-4">
+                    No scheduled calls for today
+                  </p>
+                )}
               </div>
 
 
@@ -1494,6 +1469,22 @@ Customer: Thanks, Emma. Talk soon!`,
               </div>
             </Card>
 
+            {/* AI Coach Panel */}
+            {aiCoachingData && (
+              <Card className="p-6 border border-purple-500/30 bg-[#1e293b] shadow-lg shadow-purple-500/10 mb-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Sparkles className="w-5 h-5 text-purple-400" />
+                  <h4 className="font-semibold text-white">AI Coach Analysis</h4>
+                </div>
+                <AICoachPanel
+                  masterReport={aiCoachingData.masterReport}
+                  objections={aiCoachingData.objections}
+                  questions={aiCoachingData.questions}
+                  agentAnalysis={aiCoachingData.agentAnalysis}
+                />
+              </Card>
+            )}
+
             {/* Strengths & Improvements */}
             <div className="grid grid-cols-2 gap-6">
               <Card className="p-6 border border-emerald-500/40 bg-[#1e293b] shadow-lg shadow-emerald-500/10">
@@ -1551,6 +1542,7 @@ Customer: Thanks, Emma. Talk soon!`,
           })),
           strengths: selectedCall.strengths,
           improvements: selectedCall.improvements,
+          aiCoachingData: aiCoachingData,
         }}
       />
     </div>
