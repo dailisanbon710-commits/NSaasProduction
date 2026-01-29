@@ -74,6 +74,23 @@ export function AICoachPanel({ masterReport, objections, questions, agentAnalysi
             </div>
           )}
 
+          {/* Agent Scores */}
+          {masterReport.agent_scores && (
+            <div className="mb-3">
+              <h4 className="text-xs font-medium text-blue-400 mb-2">🤖 AI Agent Scores</h4>
+              <div className="grid grid-cols-5 gap-2">
+                {Object.entries(masterReport.agent_scores).map(([key, score]: [string, any]) => (
+                  <div key={key} className="bg-slate-800/50 rounded-md p-2 text-center border border-slate-700">
+                    <div className="text-lg font-bold text-white">{score}</div>
+                    <div className="text-[10px] text-slate-400 capitalize leading-tight">
+                      {key.replace('_', ' ')}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Priority Focus */}
           {masterReport.priority_coaching_focus && (
             <div className="bg-slate-800/50 rounded-md p-3 border border-purple-500/30">

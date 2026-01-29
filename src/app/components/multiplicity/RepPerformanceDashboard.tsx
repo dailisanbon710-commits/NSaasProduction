@@ -47,7 +47,7 @@ import {
   useAllInsights,
   useAllKeyMoments
 } from "../../../services/hooks";
-import { getAICoachingSummary } from "../../../services/aiCoachService";
+import { getAICoachingSummaryWithEmail } from "../../../services/aiCoachService";
 
 export function RepPerformanceDashboard() {
   const [selectedCallId, setSelectedCallId] = useState<number>(1);
@@ -537,7 +537,8 @@ Customer: Thanks, Emma. Talk soon!`,
         setLoadingAICoaching(true);
         try {
           console.log('🔍 Fetching AI coaching data for call ID:', supabaseCall.id);
-          const data = await getAICoachingSummary(supabaseCall.id);
+          // Use the new function that also triggers email notification
+          const data = await getAICoachingSummaryWithEmail(supabaseCall.id);
           console.log('✅ AI Coaching Data received:', {
             masterReport: data.masterReport,
             objectionsCount: data.objections?.length || 0,
@@ -545,6 +546,7 @@ Customer: Thanks, Emma. Talk soon!`,
             objections: data.objections,
             questions: data.questions
           });
+          console.log('📧 Email notification triggered via N8N webhook');
           if (!abortController.signal.aborted) {
             setAiCoachingData(data);
           }

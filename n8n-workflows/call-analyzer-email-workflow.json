@@ -1,0 +1,275 @@
+{
+  "name": "Sales Call Analyzer - Email Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "call-completed",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook - Call Completed",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://jytjdryjgcxgnfwlgtwc.supabase.co/rest/v1/calls?id=eq.{{ $json.body.call_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "get-call-data",
+      "name": "Get Call Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [450, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "supabase-headers",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://jytjdryjgcxgnfwlgtwc.supabase.co/rest/v1/analysis?call_id=eq.{{ $json.body.call_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "get-analysis",
+      "name": "Get AI Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [650, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "supabase-headers",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://jytjdryjgcxgnfwlgtwc.supabase.co/rest/v1/master_coach_reports?call_id=eq.{{ $json.body.call_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "get-coach-report",
+      "name": "Get Coach Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [850, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "supabase-headers",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://jytjdryjgcxgnfwlgtwc.supabase.co/rest/v1/objections?call_id=eq.{{ $json.body.call_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "get-objections",
+      "name": "Get Objections",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1050, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "supabase-headers",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const callData = $('Get Call Data').first().json;\nconst analysis = $('Get AI Analysis').first().json;\nconst coachReport = $('Get Coach Report').first().json;\nconst objections = $('Get Objections').all();\n\nconst overallScore = analysis.scores?.overall || 0;\nconst agentScores = coachReport.agent_scores || {};\n\n// Format objections\nconst objectionsList = objections.map(obj => ({\n  category: obj.json.category,\n  customer_said: obj.json.customer_said,\n  response_score: obj.json.response_score,\n  was_resolved: obj.json.was_resolved\n}));\n\n// Determine email tone based on score\nlet emailTone = 'positive';\nlet subject = '';\n\nif (overallScore >= 80) {\n  emailTone = 'excellent';\n  subject = `🎉 Excellent Call with ${callData.customer_name} - ${overallScore}/100`;\n} else if (overallScore >= 60) {\n  emailTone = 'good';\n  subject = `✅ Good Call with ${callData.customer_name} - ${overallScore}/100`;\n} else {\n  emailTone = 'needs_improvement';\n  subject = `📊 Call Review: ${callData.customer_name} - ${overallScore}/100`;\n}\n\nreturn {\n  json: {\n    call_id: callData.id,\n    rep_name: callData.rep_name,\n    customer_name: callData.customer_name,\n    company: callData.company,\n    call_type: callData.call_type,\n    duration: Math.floor(callData.duration_seconds / 60),\n    outcome: callData.outcome,\n    overall_score: overallScore,\n    agent_scores: agentScores,\n    top_strengths: coachReport.top_strengths || [],\n    top_improvements: coachReport.top_improvements || [],\n    priority_focus: coachReport.priority_coaching_focus,\n    objections: objectionsList,\n    email_tone: emailTone,\n    email_subject: subject,\n    dashboard_url: `${process.env.VITE_APP_URL}/rep-dashboard?call_id=${callData.id}`\n  }\n};"
+      },
+      "id": "prepare-email-data",
+      "name": "Prepare Email Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "operation": "text",
+        "options": {
+          "systemMessage": "You are an AI sales coach. Generate a personalized email to a sales rep about their recent call. Be encouraging but honest. Focus on specific, actionable feedback."
+        },
+        "prompt": "=Generate a professional email for {{ $json.rep_name }} about their call with {{ $json.customer_name }}.\n\nCall Details:\n- Customer: {{ $json.customer_name }} ({{ $json.company }})\n- Type: {{ $json.call_type }}\n- Duration: {{ $json.duration }} minutes\n- Outcome: {{ $json.outcome }}\n- Overall Score: {{ $json.overall_score }}/100\n\nPerformance Scores:\n- Discovery: {{ $json.agent_scores.discovery }}/100\n- Objection Handling: {{ $json.agent_scores.objection_handling }}/100\n- Rapport Building: {{ $json.agent_scores.rapport_building }}/100\n- Closing: {{ $json.agent_scores.closing }}/100\n\nTop Strengths:\n{{ $json.top_strengths.join('\\n') }}\n\nAreas for Improvement:\n{{ $json.top_improvements.join('\\n') }}\n\nPriority Focus: {{ $json.priority_focus }}\n\nObjections Handled: {{ $json.objections.length }}\n\nTone: {{ $json.email_tone }}\n\nInclude:\n1. Personalized greeting\n2. Call summary\n3. What went well (specific examples)\n4. What to improve (specific, actionable)\n5. One key coaching tip for next call\n6. Encouraging closing\n\nKeep it concise (300-400 words). Use a friendly, coaching tone."
+      },
+      "id": "generate-email-openai",
+      "name": "Generate Email with AI",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [1450, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "1",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "coach@yoursalesapp.com",
+        "toEmail": "={{ $('Prepare Email Data').item.json.rep_name.toLowerCase().replace(' ', '.') }}@company.com",
+        "subject": "={{ $('Prepare Email Data').item.json.email_subject }}",
+        "emailType": "html",
+        "message": "=<html>\n<body style=\"font-family: Arial, sans-serif; line-height: 1.6; color: #333;\">\n  <div style=\"max-width: 600px; margin: 0 auto; padding: 20px;\">\n    \n    <!-- Header -->\n    <div style=\"background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;\">\n      <h1 style=\"color: white; margin: 0;\">📞 Call Analysis Report</h1>\n      <p style=\"color: #f0f0f0; margin: 10px 0 0 0;\">{{ $('Prepare Email Data').item.json.customer_name }}</p>\n    </div>\n    \n    <!-- Score Badge -->\n    <div style=\"background: #f8f9fa; padding: 20px; text-align: center; border-left: 4px solid #667eea; border-right: 4px solid #667eea;\">\n      <div style=\"font-size: 48px; font-weight: bold; color: {{ $('Prepare Email Data').item.json.overall_score >= 80 ? '#10b981' : $('Prepare Email Data').item.json.overall_score >= 60 ? '#f59e0b' : '#ef4444' }};\">\n        {{ $('Prepare Email Data').item.json.overall_score }}/100\n      </div>\n      <p style=\"margin: 5px 0 0 0; color: #666;\">Overall Performance</p>\n    </div>\n    \n    <!-- AI Generated Content -->\n    <div style=\"background: white; padding: 30px; border-left: 4px solid #667eea; border-right: 4px solid #667eea;\">\n      {{ $json.message.content.replace(/\\n/g, '<br>') }}\n    </div>\n    \n    <!-- Performance Breakdown -->\n    <div style=\"background: #f8f9fa; padding: 20px; border-left: 4px solid #667eea; border-right: 4px solid #667eea;\">\n      <h3 style=\"margin-top: 0; color: #667eea;\">📊 Performance Breakdown</h3>\n      <table style=\"width: 100%; border-collapse: collapse;\">\n        <tr>\n          <td style=\"padding: 8px 0;\">Discovery</td>\n          <td style=\"text-align: right; font-weight: bold;\">{{ $('Prepare Email Data').item.json.agent_scores.discovery }}/100</td>\n        </tr>\n        <tr>\n          <td style=\"padding: 8px 0;\">Objection Handling</td>\n          <td style=\"text-align: right; font-weight: bold;\">{{ $('Prepare Email Data').item.json.agent_scores.objection_handling }}/100</td>\n        </tr>\n        <tr>\n          <td style=\"padding: 8px 0;\">Rapport Building</td>\n          <td style=\"text-align: right; font-weight: bold;\">{{ $('Prepare Email Data').item.json.agent_scores.rapport_building }}/100</td>\n        </tr>\n        <tr>\n          <td style=\"padding: 8px 0;\">Closing</td>\n          <td style=\"text-align: right; font-weight: bold;\">{{ $('Prepare Email Data').item.json.agent_scores.closing }}/100</td>\n        </tr>\n      </table>\n    </div>\n    \n    <!-- CTA Button -->\n    <div style=\"background: white; padding: 30px; text-align: center; border-radius: 0 0 10px 10px; border-left: 4px solid #667eea; border-right: 4px solid #667eea; border-bottom: 4px solid #667eea;\">\n      <a href=\"{{ $('Prepare Email Data').item.json.dashboard_url }}\" style=\"display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px 40px; text-decoration: none; border-radius: 5px; font-weight: bold;\">View Full Analysis →</a>\n      <p style=\"margin: 15px 0 0 0; color: #666; font-size: 14px;\">Click to see detailed transcript, objections, and coaching insights</p>\n    </div>\n    \n  </div>\n</body>\n</html>",
+        "options": {}
+      },
+      "id": "send-email",
+      "name": "Send Email to Rep",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1650, 300],
+      "credentials": {
+        "smtp": {
+          "id": "2",
+          "name": "SMTP Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"message\": \"Email sent successfully\", \"call_id\": $('Prepare Email Data').item.json.call_id } }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Access-Control-Allow-Methods",
+                "value": "GET, POST, OPTIONS"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "Content-Type, Authorization"
+              }
+            ]
+          }
+        }
+      },
+      "id": "webhook-response",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1850, 300]
+    }
+  ],
+  "connections": {
+    "Webhook - Call Completed": {
+      "main": [
+        [
+          {
+            "node": "Get Call Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Call Data": {
+      "main": [
+        [
+          {
+            "node": "Get AI Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get AI Analysis": {
+      "main": [
+        [
+          {
+            "node": "Get Coach Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Coach Report": {
+      "main": [
+        [
+          {
+            "node": "Get Objections",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Objections": {
+      "main": [
+        [
+          {
+            "node": "Prepare Email Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Email Data": {
+      "main": [
+        [
+          {
+            "node": "Generate Email with AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Email with AI": {
+      "main": [
+        [
+          {
+            "node": "Send Email to Rep",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email to Rep": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2026-01-28T00:00:00.000Z",
+  "versionId": "1"
+}
+
